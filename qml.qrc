@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>SplashScreen.qml</file>
+        <file>MenuContent.qml</file>
+        <file>MountedDiskListElement.qml</file>
+        <file>PasswordInputDialog.qml</file>
+        <file>CreateDiskOptionsDialog.qml</file>
+    </qresource>
+</RCC>
