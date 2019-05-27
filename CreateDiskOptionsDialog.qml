@@ -148,8 +148,8 @@ Window {
             root.canceled()
         }
         root.success = false
-        root.volumeSize = ""
         root.volumeSizeUnit = 0
         root.encrypted = false
+        volumeSizeInputField.text = ""
     }
 }
