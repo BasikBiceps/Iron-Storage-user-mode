@@ -11,6 +11,7 @@ ColumnLayout {
 
     readonly property QmlFacade facade: qmlFacadeContext
 
+
     Text {
         text: qsTr("Mounted disks: ") + facade.mountedDisks.length
         color: "white"
