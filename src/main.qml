@@ -29,6 +29,15 @@ ApplicationWindow {
 
         anchors.fill: parent
         anchors.margins: 10
+        visible: !facade.busy
+    }
+
+    BusyIndicator {
+        anchors.centerIn: parent
+        height: 100
+        width: height
+        running: visible
+        visible: facade.busy
     }
 
     PasswordInputDialog {
@@ -43,17 +52,27 @@ ApplicationWindow {
         }
     }
 
-    CreateDiskOptionsDialog {
-        id: createDiskOptionsDialog
+    DiskOptionsDialog {
+        id: diskOptionsDialog
 
         availableLetters: facade.availableLetters
 
         onDone: {
-            facade.optionsForCreateDiskEntered(encrypted, letter, volumeSize, volumeSizeUnit)
+            if (diskOptionsDialog.chooseDisk) {
+                facade.chooseDiskEntered(letter)
+            }
+            else {
+                facade.optionsForCreateDiskEntered(encrypted, letter, volumeSize, volumeSizeUnit)
+            }
         }
 
         onCanceled: {
-            facade.optionsForCreateDiskCanceled()
+            if (diskOptionsDialog.chooseDisk) {
+                facade.chooseDiskCanceled()
+            }
+            else {
+                facade.optionsForCreateDiskCanceled()
+            }
         }
     }
 
@@ -63,9 +82,9 @@ ApplicationWindow {
         standardButtons: StandardButton.Ok
     }
 
-//    SplashScreen {
-//        anchors.fill: parent
-//    }
+    SplashScreen {
+        anchors.fill: parent
+    }
 
     Connections {
         target: facade
@@ -75,7 +94,12 @@ ApplicationWindow {
         }
 
         onOptionsForCreateDiskRequired: {
-            createDiskOptionsDialog.show()
+            diskOptionsDialog.show()
+        }
+
+        onChooseDiskRequired: {
+            diskOptionsDialog.chooseDisk = true
+            diskOptionsDialog.show()
         }
 
         onError: {

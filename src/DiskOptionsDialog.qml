@@ -8,6 +8,7 @@ import QtQuick.Controls.Universal 2.3
 Window {
     id: root
 
+    property bool chooseDisk: false
     property var availableLetters: []
     property alias letter: comboBoxDisk.currentText
     property alias encrypted: encryptedCheckBox.checked
@@ -46,12 +47,14 @@ Window {
             anchors.leftMargin: -6
 
             text: qsTr("Encrypted")
+            visible: !root.chooseDisk
         }
 
         RowLayout {
             anchors.left: parent.left
             anchors.right: parent.right
             height: 35
+            visible: !root.chooseDisk
 
             TextField {
                 id: volumeSizeInputField
@@ -126,7 +129,7 @@ Window {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 text: qsTr("Done")
-                enabled: root.volumeSize > 0
+                enabled: root.volumeSize > 0 || root.chooseDisk
 
                 onClicked: {
                     root.success = true
@@ -147,6 +150,7 @@ Window {
         else {
             root.canceled()
         }
+        root.chooseDisk = false
         root.success = false
         root.volumeSizeUnit = 0
         root.encrypted = false

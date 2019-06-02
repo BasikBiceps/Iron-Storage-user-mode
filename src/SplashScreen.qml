@@ -7,6 +7,7 @@ Rectangle {
     id: root
 
     color: "black"
+    focus: visible
     visible: opacity > 0
 
     Column {
@@ -75,5 +76,10 @@ Rectangle {
             property: "visible"
             value: false
         }
+    }
+
+    Keys.onPressed: {
+        root.visible = false;
+        animation.stop();
     }
 }

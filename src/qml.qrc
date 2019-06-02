@@ -5,6 +5,6 @@
         <file>MenuContent.qml</file>
         <file>MountedDiskListElement.qml</file>
         <file>PasswordInputDialog.qml</file>
-        <file>CreateDiskOptionsDialog.qml</file>
+        <file>DiskOptionsDialog.qml</file>
     </qresource>
 </RCC>

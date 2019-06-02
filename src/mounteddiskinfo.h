@@ -1,7 +1,6 @@
 #ifndef MOUNTEDDISKINFO_H
 #define MOUNTEDDISKINFO_H
 
-
 #include <QObject>
 
 class MountedDiskInfo

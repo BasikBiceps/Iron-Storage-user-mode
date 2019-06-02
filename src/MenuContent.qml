@@ -108,7 +108,7 @@ ColumnLayout {
 
     FileDialog {
         id: selectFileForMountDialog
-        nameFilters: ["Image files (*.image)"]
+        nameFilters: ["Image files (*.img)"]
 
         onAccepted: {
             facade.mount(file.toString().replace("file:///", ""))
@@ -117,7 +117,7 @@ ColumnLayout {
 
     FileDialog {
         id: selectFileForCreateDialog
-        nameFilters: ["Image files (*.image)"]
+        nameFilters: ["Image files (*.img)"]
 
         fileMode: FileDialog.SaveFile
 

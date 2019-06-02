@@ -12,6 +12,7 @@ class QmlFacade : public QObject
 {
     Q_OBJECT
 
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QVariantList mountedDisks READ mountedDisks NOTIFY mountedDisksChanged)
     Q_PROPERTY(QStringList availableLetters READ availableLetters NOTIFY availableLettersChanged)
 
@@ -22,7 +23,7 @@ class QmlFacade : public QObject
 
     struct OptionsForCreateDisk
     {
-        QString m_letter;
+        QString letter;
         bool encrypted;
         int volumeSize;
         VolumeSizeUnit volumeSizeUnit;
@@ -31,6 +32,7 @@ class QmlFacade : public QObject
 public:
     explicit QmlFacade(QObject* parent = nullptr);
 
+    bool busy() const;
     const QVariantList& mountedDisks() const;
     const QStringList& availableLetters() const;
 
@@ -49,13 +51,25 @@ public:
                                                  int volumeSizeUnit);
     Q_INVOKABLE void optionsForCreateDiskCanceled();
 
+    Q_INVOKABLE void chooseDiskEntered(const QString& letter);
+    Q_INVOKABLE void chooseDiskCanceled();
+
 signals:
     void mountedDisksChanged(const QVariantList& mountedDisks);
     void availableLettersChanged(const QStringList& availableLetters);
 
     void passwordRequired();
+    void chooseDiskRequired();
     void optionsForCreateDiskRequired();
     void error(const QString& title, const QString& text);
+
+    void busyChanged(bool busy);
+
+private:
+    void load();
+    void setBusy(bool busy);
+    void format(const QString& letter);
+    void pushMoutedDisk(const QString& url, const QString& letter, int volume, VolumeSizeUnit unit);
 
 private:
     QVariantList m_mountedDisks = {};
@@ -63,9 +77,12 @@ private:
 
     QEventLoop* m_passwordEventLoop = nullptr;
     QEventLoop* m_optionsForCreateDiskEventLoop = nullptr;
+    QEventLoop* m_chooseDiskEventLoop = nullptr;
 
+    QString m_choosedDisk = "";
     QString m_enteredPassword = "";
     std::unique_ptr<OptionsForCreateDisk> m_optionsForCreate = nullptr;
+    bool m_busy = false;
 };
 
 #endif // QMLFACADE_H
