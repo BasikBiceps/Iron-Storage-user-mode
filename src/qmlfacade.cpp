@@ -19,10 +19,14 @@ extern "C" {
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QCryptographicHash>
+
+const QString JSON_PATH = "infAboutDisks.json";
 
 QmlFacade::QmlFacade(QObject* parent)
     : QObject(parent)
 {
+    updateJson(JSON_PATH);
     load();
 }
 
@@ -84,8 +88,11 @@ void QmlFacade::mount(const QString& url)
             qDebug() << "Password is not entered";
             return;
         }
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        hash.addData(password.toUtf8());
+        QString hashPassword = QString(hash.result());
 
-        size = checkMountInfo(url, password, "infAboutDisks.json");
+        size = checkMountInfo(url, hashPassword, JSON_PATH);
         passwordPassed = size;
 
         if (++tryingCount >= 3)
@@ -109,16 +116,52 @@ void QmlFacade::mount(const QString& url)
         return;
     }
 
-    int result = 0; // TODO: mount
+
+
+
+
+    const BOOLEAN CD_IMAGE = FALSE;
+
+    QString pathForMount = "\\??\\" + url;
+    pathForMount.replace("/", "\\");
+
+    const int SIZE_STRUCT_INFO = sizeof(OPEN_FILE_INFORMATION) + pathForMount.length();
+    POPEN_FILE_INFORMATION openFileInformation = reinterpret_cast<POPEN_FILE_INFORMATION>(
+                new char[SIZE_STRUCT_INFO]);
+
+    if (openFileInformation == nullptr)
+    {
+        emit error("Error!", "Cannot initialize memory for OPEN_FILE_INFORMATION");
+        qDebug() << "Cannot initialize memory for OPEN_FILE_INFORMATION";
+        delete openFileInformation;
+        return;
+    }
+
+    memset(openFileInformation, 0, SIZE_STRUCT_INFO);
+    strcpy(openFileInformation->FileName, qUtf8Printable(pathForMount));
+
+    openFileInformation->FileNameLength = pathForMount.length();
+
+    openFileInformation->FileSize.QuadPart = size;
+
+    openFileInformation->DriveLetter = choosedDisk[0].toLatin1();
+
+    openFileInformation->PasswordLength = password.length();
+    strcpy(openFileInformation->Password, qUtf8Printable(password));
+
+    int result = FileDiskMount(mountedDisks().length(), openFileInformation, CD_IMAGE);
 
     if (result != 0)
     {
-        //emit errot("Error!", "Cannot mount disk: " + url);
-        qDebug() << "Cannot mount disk, error code:" << result;
+        emit error("Error!", "Cannot mount file disk");
+        qDebug() << "Cannot mount file disk, error code:" << result;
     }
     else
     {
-        pushMoutedDisk(url, choosedDisk, 0, VolumeSizeUnit::KB);
+        pushMoutedDisk(url,
+                       choosedDisk,
+                       size / 1024,
+                       VolumeSizeUnit::KB);
     }
 }
 
@@ -223,13 +266,6 @@ void QmlFacade::createDisk(const QString &url)
     openFileInformation->PasswordLength = password.length();
     strcpy(openFileInformation->Password, qUtf8Printable(password));
 
-    DiskInfo diskInfo;
-    diskInfo.path = url;
-    diskInfo.size = openFileInformation->FileSize.QuadPart;
-    diskInfo.passwordHash = openFileInformation->Password;
-
-    writeIntoJson(diskInfo, "infAboutDisks.json");
-
     int result = FileDiskMount(mountedDisks().length(), openFileInformation, CD_IMAGE);
 
     if (result != 0)
@@ -239,11 +275,22 @@ void QmlFacade::createDisk(const QString &url)
     }
     else
     {
-       format(options.letter);
-       pushMoutedDisk(url,
-                      options.letter,
-                      options.volumeSize,
-                      options.volumeSizeUnit);
+        format(options.letter);
+        pushMoutedDisk(url,
+                       options.letter,
+                       options.volumeSize,
+                       options.volumeSizeUnit);
+
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        hash.addData(openFileInformation->Password, openFileInformation->PasswordLength);
+        QString hashPassword = QString(hash.result());
+
+        DiskInfo diskInfo;
+        diskInfo.path = url;
+        diskInfo.size = openFileInformation->FileSize.QuadPart;
+        diskInfo.passwordHash = hashPassword;
+
+        writeIntoJson(diskInfo, JSON_PATH);
     }
 
     delete openFileInformation;
@@ -396,7 +443,7 @@ long long QmlFacade::checkMountInfo(QString path, QString password, const QStrin
     for (const auto obj : array) {
         if (obj.toObject().value("Path") == path && obj.toObject().value("Password") == password) {
             file.close();
-            return obj.toObject().value("Size").toInt();
+            return static_cast<long long>(obj.toObject().value("Size").toDouble());
         }
     }
 
@@ -405,15 +452,57 @@ long long QmlFacade::checkMountInfo(QString path, QString password, const QStrin
     return 0;
 }
 
+void QmlFacade::updateJson(const QString &fileName)
+{
+    QFile file;
+
+    file.setFileName(fileName);
+    file.open(QIODevice::ReadWrite | QIODevice::Text);
+
+    if (!file.isOpen()) {
+        qDebug() << "Error with open file!";
+        return;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    QJsonArray array = (doc.object())["Disks"].toArray();
+    QJsonArray newArray;
+
+    for (const auto obj : array) {
+        bool exist = QFile::exists(obj.toObject().value("Path").toString());
+        if (exist) {
+            newArray.append(obj.toObject());
+        }
+    }
+
+    QJsonObject obj;
+    obj["Disks"] = newArray;
+
+    file.resize(0);
+
+    QJsonDocument newDoc(obj);
+    file.write(newDoc.toJson());
+
+    file.close();
+
+}
+
 void QmlFacade::load()
 {
     for (const QStorageInfo& info : QStorageInfo::mountedVolumes())
     {
         if (!info.isValid())
         {
-            pushMoutedDisk("", QString(info.displayName().front()), 0, VolumeSizeUnit::KB);
+            OPEN_FILE_INFORMATION* infoAboutDisk = FileDiskStatus(info.displayName().front().toLatin1());
+
+            QString path(QByteArray(infoAboutDisk->FileName, infoAboutDisk->FileNameLength));
+            pushMoutedDisk(path, QString(info.displayName().front()),
+                           infoAboutDisk->FileSize.QuadPart / 1024,
+                           VolumeSizeUnit::KB);
+            free(infoAboutDisk);
         }
     }
+
 }
 
 void QmlFacade::setBusy(bool busy)

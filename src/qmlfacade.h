@@ -56,8 +56,9 @@ public:
     Q_INVOKABLE void chooseDiskEntered(const QString& letter);
     Q_INVOKABLE void chooseDiskCanceled();
 
-    Q_INVOKABLE void writeIntoJson(DiskInfo& diskInfo, const QString& fileName);
-    Q_INVOKABLE long long checkMountInfo(QString path, QString password, const QString& fileName);
+    void writeIntoJson(DiskInfo& diskInfo, const QString& fileName);
+    long long checkMountInfo(QString path, QString password, const QString& fileName);
+    void updateJson(const QString& fileName);
 
 signals:
     void mountedDisksChanged(const QVariantList& mountedDisks);
