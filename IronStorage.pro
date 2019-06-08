@@ -4,6 +4,7 @@ CONFIG += c++11
 DEFINES += QT_DEPRECATED_WARNINGS
 
 HEADERS += \
+    include/filedisk.h \
     src/mounteddiskinfo.h \
     src/qmlfacade.h \
 
@@ -32,3 +33,5 @@ win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$PWD/libs/libFileDi
 else:win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$PWD/libs/libFileDiskLibd.a
 else:win32:!win32-g++:CONFIG(release, debug|release): PRE_TARGETDEPS += $$PWD/libs/FileDiskLib.lib
 else:win32:!win32-g++:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$PWD/libs/FileDiskLibd.lib
+
+DISTFILES +=

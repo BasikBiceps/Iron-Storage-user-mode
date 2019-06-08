@@ -16,6 +16,9 @@ extern "C" {
 #include <QProcess>
 #include <QStorageInfo>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 
 QmlFacade::QmlFacade(QObject* parent)
     : QObject(parent)
@@ -63,6 +66,7 @@ void QmlFacade::mount(const QString& url)
 
     QString password;
     QString choosedDisk;
+    long long size = 0;
 
     bool passwordPassed = false;
     int tryingCount = 0;
@@ -81,7 +85,8 @@ void QmlFacade::mount(const QString& url)
             return;
         }
 
-        passwordPassed = password == "abc";
+        size = checkMountInfo(url, password, "infAboutDisks.json");
+        passwordPassed = size;
 
         if (++tryingCount >= 3)
         {
@@ -218,6 +223,13 @@ void QmlFacade::createDisk(const QString &url)
     openFileInformation->PasswordLength = password.length();
     strcpy(openFileInformation->Password, qUtf8Printable(password));
 
+    DiskInfo diskInfo;
+    diskInfo.path = url;
+    diskInfo.size = openFileInformation->FileSize.QuadPart;
+    diskInfo.passwordHash = openFileInformation->Password;
+
+    writeIntoJson(diskInfo, "infAboutDisks.json");
+
     int result = FileDiskMount(mountedDisks().length(), openFileInformation, CD_IMAGE);
 
     if (result != 0)
@@ -330,6 +342,67 @@ void QmlFacade::chooseDiskCanceled()
         m_chooseDiskEventLoop->quit();
         m_chooseDiskEventLoop = nullptr;
     }
+}
+
+void QmlFacade::writeIntoJson(QmlFacade::DiskInfo &diskInfo, const QString& fileName)
+{
+    QFile file;
+
+    file.setFileName(fileName);
+    file.open(QIODevice::ReadWrite | QIODevice::Text);
+
+    if (!file.isOpen()) {
+        qDebug() << "Error with open file!";
+        return;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    QJsonArray array = (doc.object())["Disks"].toArray();
+
+    {
+        QJsonObject temp;
+        temp["Path"] = diskInfo.path;
+        temp["Size"] = diskInfo.size;
+        temp["Password"] = diskInfo.passwordHash;
+        array.append((temp));
+    }
+
+    QJsonObject obj;
+    obj["Disks"] = array;
+
+    file.resize(0);
+
+    QJsonDocument newDoc(obj);
+    file.write(newDoc.toJson());
+
+    file.close();
+}
+
+long long QmlFacade::checkMountInfo(QString path, QString password, const QString& fileName)
+{
+    QFile file;
+
+    file.setFileName(fileName);
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
+
+    if (!file.isOpen()) {
+        qDebug() << "Error with open file!";
+        return 0;
+    }
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    QJsonArray array = (doc.object())["Disks"].toArray();
+
+    for (const auto obj : array) {
+        if (obj.toObject().value("Path") == path && obj.toObject().value("Password") == password) {
+            file.close();
+            return obj.toObject().value("Size").toInt();
+        }
+    }
+
+    file.close();
+
+    return 0;
 }
 
 void QmlFacade::load()

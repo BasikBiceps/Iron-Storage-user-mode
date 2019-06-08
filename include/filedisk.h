@@ -33,7 +33,6 @@ typedef struct _OPEN_FILE_INFORMATION {
 	CHAR            FileName[1];
 } OPEN_FILE_INFORMATION, *POPEN_FILE_INFORMATION;
 
-
 int FileDiskSyntax(void);
 void PrintLastError(char* Prefix);
 

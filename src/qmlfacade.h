@@ -26,6 +26,12 @@ class QmlFacade : public QObject
         VolumeSizeUnit volumeSizeUnit = VolumeSizeUnit::KB;
     };
 
+    struct DiskInfo {
+        QString path;
+        long long size;
+        QString passwordHash;
+    };
+
 public:
     explicit QmlFacade(QObject* parent = nullptr);
 
@@ -49,6 +55,9 @@ public:
 
     Q_INVOKABLE void chooseDiskEntered(const QString& letter);
     Q_INVOKABLE void chooseDiskCanceled();
+
+    Q_INVOKABLE void writeIntoJson(DiskInfo& diskInfo, const QString& fileName);
+    Q_INVOKABLE long long checkMountInfo(QString path, QString password, const QString& fileName);
 
 signals:
     void mountedDisksChanged(const QVariantList& mountedDisks);
