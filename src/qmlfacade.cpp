@@ -61,6 +61,9 @@ void QmlFacade::mount(const QString& url)
 
     // TODO: check url and file
 
+    QString password;
+    QString choosedDisk;
+
     bool passwordPassed = false;
     int tryingCount = 0;
     while (!passwordPassed)
@@ -68,16 +71,17 @@ void QmlFacade::mount(const QString& url)
         emit passwordRequired();
 
         QEventLoop loop;
+        m_enteredPassword = &password;
         m_passwordEventLoop = &loop;
         loop.exec();
 
-        if (m_enteredPassword.isEmpty())
+        if (password.isEmpty())
         {
             qDebug() << "Password is not entered";
             return;
         }
 
-        passwordPassed = m_enteredPassword == "abc";
+        passwordPassed = password == "abc";
 
         if (++tryingCount >= 3)
         {
@@ -86,16 +90,15 @@ void QmlFacade::mount(const QString& url)
         }
     }
 
-    m_enteredPassword.clear();
-
     updateLetters();
     emit chooseDiskRequired();
 
     QEventLoop loop;
+    m_choosedDisk = &choosedDisk;
     m_chooseDiskEventLoop = &loop;
     loop.exec();
 
-    if (m_choosedDisk.isEmpty())
+    if (choosedDisk.isEmpty())
     {
         qDebug() << "Disk is not selected!";
         return;
@@ -105,15 +108,13 @@ void QmlFacade::mount(const QString& url)
 
     if (result != 0)
     {
-        emit errot("Error!", "Cannot mount disk: " + url);
+        //emit errot("Error!", "Cannot mount disk: " + url);
         qDebug() << "Cannot mount disk, error code:" << result;
     }
     else
     {
-        pushMoutedDisk(url, m_choosedDisk, 0, VolumeSizeUnit::KB);
+        pushMoutedDisk(url, choosedDisk, 0, VolumeSizeUnit::KB);
     }
-
-    m_choosedDisk.clear();
 }
 
 void QmlFacade::unmount(int index)
@@ -148,11 +149,15 @@ void QmlFacade::createDisk(const QString &url)
 
     emit optionsForCreateDiskRequired();
 
+    OptionsForCreateDisk options;
+    QString password;
+
     QEventLoop loop;
+    m_optionsForCreate = &options;
     m_optionsForCreateDiskEventLoop = &loop;
     loop.exec();
 
-    if (!m_optionsForCreate)
+    if (options.letter.isEmpty())
     {
         qDebug() <<"Options for create broken";
         return;
@@ -160,10 +165,11 @@ void QmlFacade::createDisk(const QString &url)
 
     emit passwordRequired();
 
+    m_enteredPassword = &password;
     m_passwordEventLoop = &loop;
     loop.exec();
 
-    if (m_enteredPassword.isEmpty())
+    if (password.isEmpty())
     {
         qDebug() << "Password is not entered";
         return;
@@ -194,6 +200,7 @@ void QmlFacade::createDisk(const QString &url)
     {
         emit error("Error!", "Cannot initialize memory for OPEN_FILE_INFORMATION");
         qDebug() << "Cannot initialize memory for OPEN_FILE_INFORMATION";
+        delete openFileInformation;
         return;
     }
 
@@ -203,10 +210,13 @@ void QmlFacade::createDisk(const QString &url)
     openFileInformation->FileNameLength = pathForCreation.length();
 
     openFileInformation->FileSize.QuadPart = static_cast<LONGLONG>(
-                std::pow(1024, static_cast<int>(m_optionsForCreate->volumeSizeUnit) + 1)
-                * m_optionsForCreate->volumeSize);
+                std::pow(1024, static_cast<int>(options.volumeSizeUnit) + 1)
+                * options.volumeSize);
 
-    openFileInformation->DriveLetter = m_optionsForCreate->letter[0].toLatin1();
+    openFileInformation->DriveLetter = options.letter[0].toLatin1();
+
+    openFileInformation->PasswordLength = password.length();
+    strcpy(openFileInformation->Password, qUtf8Printable(password));
 
     int result = FileDiskMount(mountedDisks().length(), openFileInformation, CD_IMAGE);
 
@@ -217,21 +227,26 @@ void QmlFacade::createDisk(const QString &url)
     }
     else
     {
-       format(m_optionsForCreate->letter);
+       format(options.letter);
        pushMoutedDisk(url,
-                      m_optionsForCreate->letter,
-                      m_optionsForCreate->volumeSize,
-                      m_optionsForCreate->volumeSizeUnit);
+                      options.letter,
+                      options.volumeSize,
+                      options.volumeSizeUnit);
     }
 
     delete openFileInformation;
-    m_optionsForCreate.reset();
 }
 
 void QmlFacade::passwordEntered(const QString& password)
 {
     qDebug() << "Password entered:" << password;
-    m_enteredPassword = password;
+
+    if (m_enteredPassword)
+    {
+        *m_enteredPassword = password;
+        m_enteredPassword = nullptr;
+    }
+
     if (m_passwordEventLoop)
     {
         m_passwordEventLoop->quit();
@@ -242,6 +257,9 @@ void QmlFacade::passwordEntered(const QString& password)
 void QmlFacade::passwordCanceled()
 {
     qDebug() << "Password canceled";
+
+    m_enteredPassword = nullptr;
+
     if (m_passwordEventLoop)
     {
         m_passwordEventLoop->quit();
@@ -249,23 +267,22 @@ void QmlFacade::passwordCanceled()
     }
 }
 
-void QmlFacade::optionsForCreateDiskEntered(bool encrypted,
-                                            const QString& letter,
+void QmlFacade::optionsForCreateDiskEntered(const QString& letter,
                                             int volumeSize,
                                             int volumeSizeUnit)
 {
     qDebug() << "Options for create disk entered"
-             << encrypted
              << letter
              << volumeSize
              << volumeSizeUnit;
 
-    m_optionsForCreate.reset(new OptionsForCreateDisk{
-                                 letter,
-                                 encrypted,
-                                 volumeSize,
-                                 static_cast<VolumeSizeUnit>(volumeSizeUnit)
-                             });
+    if (m_optionsForCreate)
+    {
+        m_optionsForCreate->letter = letter;
+        m_optionsForCreate->volumeSize = volumeSize;
+        m_optionsForCreate->volumeSizeUnit = static_cast<VolumeSizeUnit>(volumeSizeUnit);
+        m_optionsForCreate = nullptr;
+    }
 
     if (m_optionsForCreateDiskEventLoop)
     {
@@ -278,6 +295,8 @@ void QmlFacade::optionsForCreateDiskCanceled()
 {
     qDebug() << "Options for create disk canceled";
 
+    m_optionsForCreate = nullptr;
+
     if (m_optionsForCreateDiskEventLoop)
     {
         m_optionsForCreateDiskEventLoop->quit();
@@ -287,7 +306,11 @@ void QmlFacade::optionsForCreateDiskCanceled()
 
 void QmlFacade::chooseDiskEntered(const QString& letter)
 {
-    m_choosedDisk = letter;
+    if (m_choosedDisk)
+    {
+        *m_choosedDisk = letter;
+        m_choosedDisk = nullptr;
+    }
 
     if (m_chooseDiskEventLoop)
     {
@@ -299,6 +322,8 @@ void QmlFacade::chooseDiskEntered(const QString& letter)
 void QmlFacade::chooseDiskCanceled()
 {
     qDebug() << "Choose disk canceled";
+
+    m_choosedDisk = nullptr;
 
     if (m_chooseDiskEventLoop)
     {

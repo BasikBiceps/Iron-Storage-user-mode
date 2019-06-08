@@ -11,7 +11,6 @@ Window {
     property bool chooseDisk: false
     property var availableLetters: []
     property alias letter: comboBoxDisk.currentText
-    property alias encrypted: encryptedCheckBox.checked
     property int volumeSize: parseInt(volumeSizeInputField.text)
     property alias topVolumeSize: volumeSizeValidator.top
     property int volumeSizeUnit: 0
@@ -38,17 +37,6 @@ Window {
 
         anchors.leftMargin: 10
         anchors.rightMargin: 10
-
-        CheckBox {
-            id: encryptedCheckBox
-
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: -6
-
-            text: qsTr("Encrypted")
-            visible: !root.chooseDisk
-        }
 
         RowLayout {
             anchors.left: parent.left
@@ -153,7 +141,6 @@ Window {
         root.chooseDisk = false
         root.success = false
         root.volumeSizeUnit = 0
-        root.encrypted = false
         volumeSizeInputField.text = ""
     }
 }

@@ -6,8 +6,6 @@
 #include <QVariantList>
 #include <QStringList>
 
-#include <memory>
-
 class QmlFacade : public QObject
 {
     Q_OBJECT
@@ -23,10 +21,9 @@ class QmlFacade : public QObject
 
     struct OptionsForCreateDisk
     {
-        QString letter;
-        bool encrypted;
-        int volumeSize;
-        VolumeSizeUnit volumeSizeUnit;
+        QString letter = "";
+        int volumeSize = 0;
+        VolumeSizeUnit volumeSizeUnit = VolumeSizeUnit::KB;
     };
 
 public:
@@ -45,8 +42,7 @@ public:
     Q_INVOKABLE void passwordEntered(const QString& password);
     Q_INVOKABLE void passwordCanceled();
 
-    Q_INVOKABLE void optionsForCreateDiskEntered(bool encrypted,
-                                                 const QString& letter,
+    Q_INVOKABLE void optionsForCreateDiskEntered(const QString& letter,
                                                  int volumeSize,
                                                  int volumeSizeUnit);
     Q_INVOKABLE void optionsForCreateDiskCanceled();
@@ -61,7 +57,7 @@ signals:
     void passwordRequired();
     void chooseDiskRequired();
     void optionsForCreateDiskRequired();
-    void error(const QString& title, const QString& text);
+    void error(const QString& title, const QString& msg);
 
     void busyChanged(bool busy);
 
@@ -79,9 +75,9 @@ private:
     QEventLoop* m_optionsForCreateDiskEventLoop = nullptr;
     QEventLoop* m_chooseDiskEventLoop = nullptr;
 
-    QString m_choosedDisk = "";
-    QString m_enteredPassword = "";
-    std::unique_ptr<OptionsForCreateDisk> m_optionsForCreate = nullptr;
+    QString* m_choosedDisk = nullptr;
+    QString* m_enteredPassword = nullptr;
+    OptionsForCreateDisk* m_optionsForCreate = nullptr;
     bool m_busy = false;
 };
 

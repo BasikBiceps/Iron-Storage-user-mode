@@ -24,15 +24,19 @@
 #define IOCTL_FILE_DISK_QUERY_FILE  CTL_CODE(FILE_DEVICE_DISK, 0x802, METHOD_BUFFERED, FILE_READ_ACCESS)
 
 typedef struct _OPEN_FILE_INFORMATION {
-    LARGE_INTEGER   FileSize;
-    BOOLEAN         ReadOnly;
-    UCHAR           DriveLetter;
-    USHORT          FileNameLength;
-    CHAR            FileName[1];
+	LARGE_INTEGER   FileSize;
+	BOOLEAN         ReadOnly;
+	UCHAR           DriveLetter;
+	USHORT          FileNameLength;
+	USHORT			PasswordLength;
+	CHAR			Password[17];
+	CHAR            FileName[1];
 } OPEN_FILE_INFORMATION, *POPEN_FILE_INFORMATION;
+
 
 int FileDiskSyntax(void);
 void PrintLastError(char* Prefix);
+
 int FileDiskMount(
     int                     DeviceNumber,
     POPEN_FILE_INFORMATION  OpenFileInformation,
@@ -40,7 +44,5 @@ int FileDiskMount(
 );
 
 int FileDiskUmount(char DriveLetter);
-int FileDiskStatus(char DriveLetter);
-
-
+OPEN_FILE_INFORMATION* FileDiskStatus(char DriveLetter);
 #endif

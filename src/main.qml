@@ -62,7 +62,7 @@ ApplicationWindow {
                 facade.chooseDiskEntered(letter)
             }
             else {
-                facade.optionsForCreateDiskEntered(encrypted, letter, volumeSize, volumeSizeUnit)
+                facade.optionsForCreateDiskEntered(letter, volumeSize, volumeSizeUnit)
             }
         }
 
@@ -104,7 +104,7 @@ ApplicationWindow {
 
         onError: {
             errorBox.title = title
-            errorBox.text = text
+            errorBox.text = msg
             errorBox.open()
         }
     }
