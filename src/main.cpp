@@ -3,6 +3,7 @@
 
 #include <QQuickStyle>
 #include <QQmlContext>
+#include <QProcess>
 
 #include <QDebug>
 
@@ -13,6 +14,12 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication app(argc, argv);
     QQuickStyle::setStyle("Universal");
+
+    QProcess process;
+    QString file = qApp->applicationDirPath() + "/driverLoader(x64)/IronStorageDriverLoader.exe";
+    qDebug() << file;
+    process.start(file);
+    process.waitForStarted(-1);
 
     QmlFacade qmlFacade;
     QQmlApplicationEngine engine;

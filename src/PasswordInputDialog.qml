@@ -39,9 +39,9 @@ Window {
         height: 25
 
         echoMode: TextInput.Password
-        maximumLength: 16
-        horizontalAlignment: TextInput.AlignHCenter
-        verticalAlignment: TextInput.AlignVCenter
+        maximumLength: 32
+        horizontalAlignment: TextInput.Right
+        verticalAlignment: TextInput.Right
         focus: true
 
         onEditingFinished: {

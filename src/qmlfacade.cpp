@@ -2,7 +2,7 @@
 #include "mounteddiskinfo.h"
 
 extern "C" {
-#include <filedisk.h>
+#include <IronStorage.h>
 }
 
 #include <cstdio>
@@ -116,12 +116,6 @@ void QmlFacade::mount(const QString& url)
         return;
     }
 
-
-
-
-
-    const BOOLEAN CD_IMAGE = FALSE;
-
     QString pathForMount = "\\??\\" + url;
     pathForMount.replace("/", "\\");
 
@@ -149,12 +143,12 @@ void QmlFacade::mount(const QString& url)
     openFileInformation->PasswordLength = password.length();
     strcpy(openFileInformation->Password, qUtf8Printable(password));
 
-    int result = FileDiskMount(mountedDisks().length(), openFileInformation, CD_IMAGE);
+    int result = IronStorageDiskMount(mountedDisks().length(), openFileInformation);
 
     if (result != 0)
     {
-        emit error("Error!", "Cannot mount file disk");
-        qDebug() << "Cannot mount file disk, error code:" << result;
+        emit error("Error!", "Cannot mount disk. \nPlease, load a driver in Iron Storage loader.");
+        qDebug() << "Cannot mount disk, error code:" << result;
     }
     else
     {
@@ -169,7 +163,7 @@ void QmlFacade::unmount(int index)
 {
     QString letter = m_mountedDisks.at(index).value<MountedDiskInfo>().letter();
 
-    int result = FileDiskUmount(letter.toLower().front().toLatin1());
+    int result = IronStorageDiskUnMount(letter.toLower().front().toLatin1());
 
     if (result != 0)
     {
@@ -235,8 +229,6 @@ void QmlFacade::createDisk(const QString &url)
         }
     }
 
-    const BOOLEAN CD_IMAGE = FALSE;
-
     QString pathForCreation = "\\??\\" + url;
     pathForCreation.replace("/", "\\");
 
@@ -266,12 +258,12 @@ void QmlFacade::createDisk(const QString &url)
     openFileInformation->PasswordLength = password.length();
     strcpy(openFileInformation->Password, qUtf8Printable(password));
 
-    int result = FileDiskMount(mountedDisks().length(), openFileInformation, CD_IMAGE);
+    int result = IronStorageDiskMount(mountedDisks().length(), openFileInformation);
 
     if (result != 0)
     {
-        emit error("Error!", "Cannot create file disk");
-        qDebug() << "Cannot create file disk, error code:" << result;
+        emit error("Error!", "Cannot create disk. \nPlease, load a driver in Iron Storage loader.");
+        qDebug() << "Cannot create disk, error code:" << result;
     }
     else
     {
@@ -493,9 +485,10 @@ void QmlFacade::load()
     {
         if (!info.isValid())
         {
-            OPEN_FILE_INFORMATION* infoAboutDisk = FileDiskStatus(info.displayName().front().toLatin1());
+            OPEN_FILE_INFORMATION* infoAboutDisk = IronStorageDiskStatus(info.displayName().front().toLatin1());
 
             QString path(QByteArray(infoAboutDisk->FileName, infoAboutDisk->FileNameLength));
+            path.remove("\\??\\");
             pushMoutedDisk(path, QString(info.displayName().front()),
                            infoAboutDisk->FileSize.QuadPart / 1024,
                            VolumeSizeUnit::KB);
