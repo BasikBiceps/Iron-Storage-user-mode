@@ -5,6 +5,9 @@
 #include <QEventLoop>
 #include <QVariantList>
 #include <QStringList>
+#include <diskinformationtools.h>
+
+const QString JSON_PATH = "infAboutDisks.json";
 
 class QmlFacade : public QObject
 {
@@ -24,12 +27,6 @@ class QmlFacade : public QObject
         QString letter = "";
         int volumeSize = 0;
         VolumeSizeUnit volumeSizeUnit = VolumeSizeUnit::KB;
-    };
-
-    struct DiskInfo {
-        QString path;
-        long long size;
-        QString passwordHash;
     };
 
 public:
@@ -56,10 +53,6 @@ public:
     Q_INVOKABLE void chooseDiskEntered(const QString& letter);
     Q_INVOKABLE void chooseDiskCanceled();
 
-    void writeIntoJson(DiskInfo& diskInfo, const QString& fileName);
-    long long checkMountInfo(QString path, QString password, const QString& fileName);
-    void updateJson(const QString& fileName);
-
 signals:
     void mountedDisksChanged(const QVariantList& mountedDisks);
     void availableLettersChanged(const QStringList& availableLetters);
@@ -78,6 +71,7 @@ private:
     void pushMoutedDisk(const QString& url, const QString& letter, int volume, VolumeSizeUnit unit);
 
 private:
+    DiskInformationTools m_diskInfo = DiskInformationTools(JSON_PATH);
     QVariantList m_mountedDisks = {};
     QStringList m_availableLetters = {};
 

@@ -4,11 +4,13 @@ CONFIG += c++11
 DEFINES += QT_DEPRECATED_WARNINGS
 
 HEADERS += \
+    diskinformationtools.h \
     include/IronStorage.h \
     src/mounteddiskinfo.h \
     src/qmlfacade.h \
 
 SOURCES += \
+        diskinformationtools.cpp \
         src/main.cpp \
         src/mounteddiskinfo.cpp \
         src/qmlfacade.cpp
