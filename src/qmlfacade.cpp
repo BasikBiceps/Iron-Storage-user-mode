@@ -1,13 +1,13 @@
 #include "qmlfacade.h"
 #include "mounteddiskinfo.h"
 
-extern "C" {
-#include <IronStorage.h>
-}
-
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+
+extern "C" {
+#include "IronStorage.h"
+}
 
 #include <Windows.h>
 
@@ -15,10 +15,6 @@ extern "C" {
 #include <QThread>
 #include <QProcess>
 #include <QStorageInfo>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonArray>
-#include <QJsonObject>
 #include <QCryptographicHash>
 
 QmlFacade::QmlFacade(QObject* parent)
@@ -113,34 +109,7 @@ void QmlFacade::mount(const QString& url)
         return;
     }
 
-    QString pathForMount = "\\??\\" + url;
-    pathForMount.replace("/", "\\");
-
-    const int SIZE_STRUCT_INFO = sizeof(OPEN_FILE_INFORMATION) + pathForMount.length();
-    POPEN_FILE_INFORMATION openFileInformation = reinterpret_cast<POPEN_FILE_INFORMATION>(
-                new char[SIZE_STRUCT_INFO]);
-
-    if (openFileInformation == nullptr)
-    {
-        emit error("Error!", "Cannot initialize memory for OPEN_FILE_INFORMATION");
-        qDebug() << "Cannot initialize memory for OPEN_FILE_INFORMATION";
-        delete openFileInformation;
-        return;
-    }
-
-    memset(openFileInformation, 0, SIZE_STRUCT_INFO);
-    strcpy(openFileInformation->FileName, qUtf8Printable(pathForMount));
-
-    openFileInformation->FileNameLength = pathForMount.length();
-
-    openFileInformation->FileSize.QuadPart = size;
-
-    openFileInformation->DriveLetter = choosedDisk[0].toLatin1();
-
-    openFileInformation->PasswordLength = password.length();
-    strcpy(openFileInformation->Password, qUtf8Printable(password));
-
-    int result = IronStorageDiskMount(mountedDisks().length(), openFileInformation);
+    int result = m_diskManager.mount(url,password,size,choosedDisk[0].toLatin1(),mountedDisks().length());
 
     if (result != 0)
     {
@@ -160,7 +129,7 @@ void QmlFacade::unmount(int index)
 {
     QString letter = m_mountedDisks.at(index).value<MountedDiskInfo>().letter();
 
-    int result = IronStorageDiskUnMount(letter.toLower().front().toLatin1());
+    int result = m_diskManager.unmount(letter.front().toLatin1());
 
     if (result != 0)
     {
@@ -225,37 +194,10 @@ void QmlFacade::createDisk(const QString &url)
             return;
         }
     }
+    long long size = static_cast<LONGLONG>(std::pow(1024, static_cast<int>(options.volumeSizeUnit) + 1)
+                                           * options.volumeSize);
 
-    QString pathForCreation = "\\??\\" + url;
-    pathForCreation.replace("/", "\\");
-
-    const int SIZE_STRUCT_INFO = sizeof(OPEN_FILE_INFORMATION) + pathForCreation.length();
-    POPEN_FILE_INFORMATION openFileInformation = reinterpret_cast<POPEN_FILE_INFORMATION>(
-                new char[SIZE_STRUCT_INFO]);
-
-    if (openFileInformation == nullptr)
-    {
-        emit error("Error!", "Cannot initialize memory for OPEN_FILE_INFORMATION");
-        qDebug() << "Cannot initialize memory for OPEN_FILE_INFORMATION";
-        delete openFileInformation;
-        return;
-    }
-
-    memset(openFileInformation, 0, SIZE_STRUCT_INFO);
-    strcpy(openFileInformation->FileName, qUtf8Printable(pathForCreation));
-
-    openFileInformation->FileNameLength = pathForCreation.length();
-
-    openFileInformation->FileSize.QuadPart = static_cast<LONGLONG>(
-                std::pow(1024, static_cast<int>(options.volumeSizeUnit) + 1)
-                * options.volumeSize);
-
-    openFileInformation->DriveLetter = options.letter[0].toLatin1();
-
-    openFileInformation->PasswordLength = password.length();
-    strcpy(openFileInformation->Password, qUtf8Printable(password));
-
-    int result = IronStorageDiskMount(mountedDisks().length(), openFileInformation);
+    int result = m_diskManager.mount(url,password,size,options.letter[0].toLatin1(),mountedDisks().length());
 
     if (result != 0)
     {
@@ -271,18 +213,16 @@ void QmlFacade::createDisk(const QString &url)
                        options.volumeSizeUnit);
 
         QCryptographicHash hash(QCryptographicHash::Sha256);
-        hash.addData(openFileInformation->Password, openFileInformation->PasswordLength);
+        hash.addData(qUtf8Printable(password), password.length());
         QString hashPassword = QString(hash.result());
 
         DiskInfo diskInfo;
         diskInfo.path = url;
-        diskInfo.size = openFileInformation->FileSize.QuadPart;
+        diskInfo.size = size;
         diskInfo.passwordHash = hashPassword;
 
         m_diskInfo.writeIntoFile(diskInfo);
     }
-
-    delete openFileInformation;
 }
 
 void QmlFacade::passwordEntered(const QString& password)
@@ -315,9 +255,7 @@ void QmlFacade::passwordCanceled()
     }
 }
 
-void QmlFacade::optionsForCreateDiskEntered(const QString& letter,
-                                            int volumeSize,
-                                            int volumeSizeUnit)
+void QmlFacade::optionsForCreateDiskEntered(const QString& letter, int volumeSize, int volumeSizeUnit)
 {
     qDebug() << "Options for create disk entered"
              << letter

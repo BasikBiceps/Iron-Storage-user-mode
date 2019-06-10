@@ -6,6 +6,7 @@
 #include <QVariantList>
 #include <QStringList>
 #include <diskinformationtools.h>
+#include <diskmanager.h>
 
 const QString JSON_PATH = "infAboutDisks.json";
 
@@ -72,6 +73,7 @@ private:
 
 private:
     DiskInformationTools m_diskInfo = DiskInformationTools(JSON_PATH);
+    DiskManager m_diskManager;
     QVariantList m_mountedDisks = {};
     QStringList m_availableLetters = {};
 

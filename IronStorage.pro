@@ -5,12 +5,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 HEADERS += \
     diskinformationtools.h \
+    diskmanager.h \
     include/IronStorage.h \
     src/mounteddiskinfo.h \
     src/qmlfacade.h \
 
 SOURCES += \
         diskinformationtools.cpp \
+        diskmanager.cpp \
         src/main.cpp \
         src/mounteddiskinfo.cpp \
         src/qmlfacade.cpp
