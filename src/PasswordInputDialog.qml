@@ -45,7 +45,7 @@ Window {
         focus: true
 
         onEditingFinished: {
-            if (length > 0) {
+            if (length >= 8) {
                 root.close()
             }
         }

@@ -8,7 +8,6 @@ Rectangle {
 
     color: "black"
     focus: visible
-    visible: opacity > 0
 
     Column {
         spacing: 10
@@ -79,7 +78,7 @@ Rectangle {
     }
 
     Keys.onPressed: {
-        root.visible = false;
         animation.stop();
+        root.visible = false;
     }
 }

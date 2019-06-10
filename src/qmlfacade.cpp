@@ -1,15 +1,16 @@
 #include "qmlfacade.h"
 #include "mounteddiskinfo.h"
+#include "diskinfomodel.h"
+#include "diskmanager.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
 
-extern "C" {
-#include "IronStorage.h"
-}
-
 #include <Windows.h>
+
+#include <QGuiApplication>
+#include <QLocale>
 
 #include <QDebug>
 #include <QThread>
@@ -17,11 +18,23 @@ extern "C" {
 #include <QStorageInfo>
 #include <QCryptographicHash>
 
+const QStringList AVAILABLE_LANGUAGES = {"en_GB", "ru_RU", "ua"};
+
 QmlFacade::QmlFacade(QObject* parent)
     : QObject(parent)
 {
-    m_diskInfo.updateFile();
-    load();
+    QString sysLang = QLocale::system().name();
+
+    int index = AVAILABLE_LANGUAGES.indexOf(sysLang);
+    if (index >= 0)
+    {
+        m_currentLanguageIndex = index;
+    }
+
+    QLocale::setDefault(AVAILABLE_LANGUAGES[m_currentLanguageIndex]);
+    m_translator.load(":/translations/translate.qm");
+
+    qApp->installTranslator(&m_translator);
 }
 
 bool QmlFacade::busy() const
@@ -37,6 +50,15 @@ const QVariantList& QmlFacade::mountedDisks() const
 const QStringList& QmlFacade::availableLetters() const
 {
     return m_availableLetters;
+}
+
+void QmlFacade::setDiskServices(DiskManager* manager, DiskInfoModel* model)
+{
+    m_diskManager = manager;
+    m_diskInfoModel = model;
+
+    m_mountedDisks = m_diskManager->requireMountedDiskInfo();
+    emit mountedDisksChanged(m_mountedDisks);
 }
 
 void QmlFacade::updateLetters()
@@ -60,9 +82,16 @@ void QmlFacade::mount(const QString& url)
 {
     qDebug() << "Mount required:" << url;
 
+    const UserDiskInfo* userDiskInfo = m_diskInfoModel->getByPath(url);
+
+    if (!userDiskInfo)
+    {
+        qCritical() << "Model not contains info about" << url;
+        return;
+    }
+
     QString password;
     QString choosedDisk;
-    long long size = 0;
 
     bool passwordPassed = false;
     int tryingCount = 0;
@@ -83,10 +112,9 @@ void QmlFacade::mount(const QString& url)
 
         QCryptographicHash hash(QCryptographicHash::Sha256);
         hash.addData(password.toUtf8());
-        QString hashPassword = QString(hash.result());
+        QString passwordHash = QString(hash.result());
 
-        size = m_diskInfo.checkMountInfo(url, hashPassword);
-        passwordPassed = size;
+        passwordPassed = passwordHash == userDiskInfo->passwordHash;
 
         if (++tryingCount >= 3)
         {
@@ -109,18 +137,22 @@ void QmlFacade::mount(const QString& url)
         return;
     }
 
-    int result = m_diskManager.mount(url,password,size,choosedDisk[0].toLatin1(),mountedDisks().length());
+    int result = m_diskManager->mount(url,
+                                      password,
+                                      userDiskInfo->volume,
+                                      choosedDisk.front().toLatin1(),
+                                      mountedDisks().length());
 
     if (result != 0)
     {
-        emit error("Error!", "Cannot mount disk. \nPlease, load a driver in Iron Storage loader.");
-        qDebug() << "Cannot mount disk, error code:" << result;
+        emit error("Cannot mount disk. \nPlease, load a driver in Iron Storage loader.");
+        qInfo() << "Cannot mount disk, error code:" << result;
     }
     else
     {
         pushMoutedDisk(url,
                        choosedDisk,
-                       size / 1024,
+                       userDiskInfo->volume / 1024,
                        VolumeSizeUnit::KB);
     }
 }
@@ -129,12 +161,12 @@ void QmlFacade::unmount(int index)
 {
     QString letter = m_mountedDisks.at(index).value<MountedDiskInfo>().letter();
 
-    int result = m_diskManager.unmount(letter.front().toLatin1());
+    int result = m_diskManager->unmount(letter.front().toLatin1());
 
     if (result != 0)
     {
-        emit error("Error!", "Cannot umount. Please close all explorer windows");
-        qDebug() << "Cannot unmount" << letter << "error code:" << result;
+        emit error("Cannot umount. Please close all explorer windows");
+        qInfo() << "Cannot unmount" << letter << "error code:" << result;
     }
     else
     {
@@ -183,26 +215,30 @@ void QmlFacade::createDisk(const QString &url)
         return;
     }
 
-    QFile file;
-    file.setFileName(url);
-    if (file.exists())
+    if (QFile::exists(url))
     {
-        if (!file.remove())
+        if (!QFile::remove(url))
         {
-            emit error("Error!", "Cannot replace file: " + url);
+            emit error("Cannot replace file: " + url);
             qDebug() << "Cannot replace file:" << url;
             return;
         }
     }
-    long long size = static_cast<LONGLONG>(std::pow(1024, static_cast<int>(options.volumeSizeUnit) + 1)
-                                           * options.volumeSize);
 
-    int result = m_diskManager.mount(url,password,size,options.letter[0].toLatin1(),mountedDisks().length());
+    long long size = static_cast<LONGLONG>(
+                std::pow(1024, static_cast<int>(options.volumeSizeUnit) + 1)
+                * options.volumeSize);
+
+    int result = m_diskManager->mount(url,
+                                      password,
+                                      size,
+                                      options.letter.front().toLatin1(),
+                                      mountedDisks().length());
 
     if (result != 0)
     {
-        emit error("Error!", "Cannot create disk. \nPlease, load a driver in Iron Storage loader.");
-        qDebug() << "Cannot create disk, error code:" << result;
+        emit error("Cannot create disk. \nPlease, load a driver in Iron Storage loader.");
+        qInfo() << "Cannot create disk, error code:" << result;
     }
     else
     {
@@ -214,14 +250,9 @@ void QmlFacade::createDisk(const QString &url)
 
         QCryptographicHash hash(QCryptographicHash::Sha256);
         hash.addData(qUtf8Printable(password), password.length());
-        QString hashPassword = QString(hash.result());
+        QString passwordHash = QString(hash.result());
 
-        DiskInfo diskInfo;
-        diskInfo.path = url;
-        diskInfo.size = size;
-        diskInfo.passwordHash = hashPassword;
-
-        m_diskInfo.writeIntoFile(diskInfo);
+        m_diskInfoModel->push({url, passwordHash, size});
     }
 }
 
@@ -318,23 +349,21 @@ void QmlFacade::chooseDiskCanceled()
     }
 }
 
-void QmlFacade::load()
+void QmlFacade::changeLanguage()
 {
-    for (const QStorageInfo& info : QStorageInfo::mountedVolumes())
-    {
-        if (!info.isValid())
-        {
-            OPEN_FILE_INFORMATION* infoAboutDisk = IronStorageDiskStatus(info.displayName().front().toLatin1());
+    m_currentLanguageIndex++;
 
-            QString path(QByteArray(infoAboutDisk->FileName, infoAboutDisk->FileNameLength));
-            path.remove("\\??\\");
-            pushMoutedDisk(path, QString(info.displayName().front()),
-                           infoAboutDisk->FileSize.QuadPart / 1024,
-                           VolumeSizeUnit::KB);
-            free(infoAboutDisk);
-        }
+    if (m_currentLanguageIndex >= AVAILABLE_LANGUAGES.size())
+    {
+        m_currentLanguageIndex = 0;
     }
 
+    qApp->removeTranslator(&m_translator);
+    QLocale::setDefault(AVAILABLE_LANGUAGES[m_currentLanguageIndex]);
+    m_translator.load(":/translations/translate.qm");
+    qApp->installTranslator(&m_translator);
+
+    emit languageChanged();
 }
 
 void QmlFacade::setBusy(bool busy)
@@ -351,43 +380,16 @@ void QmlFacade::setBusy(bool busy)
 void QmlFacade::format(const QString& letter)
 {
     setBusy(true);
-    QEventLoop loop;
-    QThread* thread = QThread::create([&] () {
-        QProcess format;
-        format.start("cmd.exe");
-        format.waitForStarted();
-        format.waitForFinished(100);
-        format.readAllStandardOutput();
-        format.write(QString("format " + letter + ": \r\n").toUtf8());
-        format.readAllStandardOutput();
-        format.write(QString("y \r\n").toUtf8());
-        format.readAllStandardOutput();
-        format.write(QString("\r\n").toUtf8());
-        format.closeWriteChannel();
-        format.waitForFinished(-1);
-        format.readAllStandardOutput();
-        loop.quit();
-    });
-    thread->start();
-    loop.exec();
+    m_diskManager->format(letter.front().toLatin1());
     setBusy(false);
 }
 
-void QmlFacade::pushMoutedDisk(const QString& url, const QString& letter, int volume, VolumeSizeUnit unit)
+void QmlFacade::pushMoutedDisk(const QString& url,
+                               const QString& letter,
+                               int volume,
+                               VolumeSizeUnit unit)
 {
-    static const QString UNITS[] = {"KB", "MB", "GB"};
-
-    while (unit != VolumeSizeUnit::GB && volume >= 1024)
-    {
-        volume /= 1024;
-        unit = static_cast<VolumeSizeUnit>(static_cast<int>(unit)+ 1);
-    }
-
-    MountedDiskInfo mountInfo;
-
-    mountInfo.setPath(url);
-    mountInfo.setLetter(letter);
-    mountInfo.setVolume(QString::number(volume) + UNITS[static_cast<int>(unit)]);
+    MountedDiskInfo mountInfo(url, letter, volume, unit);
 
     m_mountedDisks << QVariant::fromValue(mountInfo);
     emit mountedDisksChanged(m_mountedDisks);

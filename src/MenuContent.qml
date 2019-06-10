@@ -104,6 +104,18 @@ ColumnLayout {
                 facade.unmountAll()
             }
         }
+
+        Button {
+            id: changeLanguage
+
+            Layout.preferredHeight: height
+
+            icon.source: "qrc:/icons-language.png"
+
+            onClicked: {
+                facade.changeLanguage()
+            }
+        }
     }
 
     FileDialog {

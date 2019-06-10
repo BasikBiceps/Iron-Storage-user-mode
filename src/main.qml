@@ -103,7 +103,7 @@ ApplicationWindow {
         }
 
         onError: {
-            errorBox.title = title
+            errorBox.title = "Error!"
             errorBox.text = msg
             errorBox.open()
         }

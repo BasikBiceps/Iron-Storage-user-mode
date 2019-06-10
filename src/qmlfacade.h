@@ -5,10 +5,13 @@
 #include <QEventLoop>
 #include <QVariantList>
 #include <QStringList>
-#include <diskinformationtools.h>
-#include <diskmanager.h>
 
-const QString JSON_PATH = "infAboutDisks.json";
+#include "mounteddiskinfo.h"
+
+#include <QTranslator>
+
+class DiskManager;
+class DiskInfoModel;
 
 class QmlFacade : public QObject
 {
@@ -17,11 +20,6 @@ class QmlFacade : public QObject
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QVariantList mountedDisks READ mountedDisks NOTIFY mountedDisksChanged)
     Q_PROPERTY(QStringList availableLetters READ availableLetters NOTIFY availableLettersChanged)
-
-    enum class VolumeSizeUnit
-    {
-        KB, MB, GB
-    };
 
     struct OptionsForCreateDisk
     {
@@ -36,6 +34,8 @@ public:
     bool busy() const;
     const QVariantList& mountedDisks() const;
     const QStringList& availableLetters() const;
+
+    void setDiskServices(DiskManager* manager, DiskInfoModel* model);
 
     Q_INVOKABLE void updateLetters();
     Q_INVOKABLE void mount(const QString& url);
@@ -53,6 +53,7 @@ public:
 
     Q_INVOKABLE void chooseDiskEntered(const QString& letter);
     Q_INVOKABLE void chooseDiskCanceled();
+    Q_INVOKABLE void changeLanguage();
 
 signals:
     void mountedDisksChanged(const QVariantList& mountedDisks);
@@ -61,19 +62,19 @@ signals:
     void passwordRequired();
     void chooseDiskRequired();
     void optionsForCreateDiskRequired();
-    void error(const QString& title, const QString& msg);
-
+    void error(const QString& msg);
     void busyChanged(bool busy);
+    void languageChanged();
 
 private:
-    void load();
     void setBusy(bool busy);
     void format(const QString& letter);
     void pushMoutedDisk(const QString& url, const QString& letter, int volume, VolumeSizeUnit unit);
 
 private:
-    DiskInformationTools m_diskInfo = DiskInformationTools(JSON_PATH);
-    DiskManager m_diskManager;
+    DiskManager* m_diskManager = nullptr;
+    DiskInfoModel* m_diskInfoModel = nullptr;
+
     QVariantList m_mountedDisks = {};
     QStringList m_availableLetters = {};
 
@@ -85,6 +86,9 @@ private:
     QString* m_enteredPassword = nullptr;
     OptionsForCreateDisk* m_optionsForCreate = nullptr;
     bool m_busy = false;
+
+    QTranslator m_translator;
+    int m_currentLanguageIndex = 0;
 };
 
 #endif // QMLFACADE_H
